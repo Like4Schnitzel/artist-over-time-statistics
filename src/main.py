@@ -41,16 +41,16 @@ secret = os.getenv("SECRET")
 print(f"API key is {api_key}")
 print(f"Secret is {secret}")
 
-session_token = os.getenv("SESSION_TOKEN")
-if session_token is None:
+session_key = os.getenv("SESSION_KEY")
+if session_key is None:
     token = get_token(api_key)
     print(f"Token is {token}")
 
     webbrowser.open(f"http://www.last.fm/api/auth/?api_key={api_key}&token={token}")
     input("Press Enter after authorizing the app on last.fm...") # way too lazy to do this in a better way
 
-    session_token = get_session(api_key, token, secret)["session"]["key"]
+    session_key = get_session(api_key, token, secret)["session"]["key"]
     with open(dotenv_path, 'a') as f:
-        f.write(f"SESSION_TOKEN = {session_token}\n")
+        f.write(f"SESSION_KEY = {session_key}\n")
 
-print(f"Session token is {session_token}")
+print(f"Session token is {session_key}")
