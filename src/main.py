@@ -35,7 +35,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     api_key, secret, session_key, username = init_auth()
-    get_tracks_url = f'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={username}&api_key={api_key}&format=json'
+    get_tracks_url = f'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={username}&api_key={api_key}&limit=200&format=json'
 
     if args.end:
         end_time = parse_date(args.end)
@@ -49,5 +49,16 @@ if __name__ == "__main__":
 
     get_tracks_url += f'&from={start_time}&to={end_time}'
 
-    response = requests.get(get_tracks_url)
-    json.dump(response.json(), open('response.json', 'w'), indent=4)
+    page_number = 1
+    tracks = []
+    total_pages = "?"
+    while True:
+        print(f"Fetching page {page_number}/{total_pages}...\r", end="")
+        response = requests.get(get_tracks_url + f'&page={page_number}')
+        total_pages = int(response.json()['recenttracks']['@attr']['totalPages'])
+        tracks = response.json()['recenttracks']['track']
+
+        page_number += 1
+        if page_number > total_pages:
+            break
+    print("Done!")
