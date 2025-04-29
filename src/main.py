@@ -1,56 +1,53 @@
-import os
-import webbrowser
-from hashlib import md5
+import json
+from auth import init_auth
+from datetime import datetime
+from urllib.parse import urlparse
+import sys
+import time
 import requests
-from dotenv import load_dotenv, find_dotenv
+import argparse
 
-def get_api_sig(params: dict, secret: str):
-    sorted_params = sorted(params.items())
-    unhashed_sig = ""
-    for key, value in sorted_params:
-        unhashed_sig += f"{key}{value}"
-    unhashed_sig += secret
-    sig = md5(unhashed_sig.encode()).hexdigest()
-    return sig
+def parse_date(date_str):
+    """
+    Parses a date string in the format YYYY-MM-DD and returns a UNIX timestamp.
+    """
+    try:
+        return int(time.mktime(datetime.strptime(date_str, '%Y-%m-%d').timetuple()))
+    except:
+        raise ValueError(f"Invalid date format '{date_str}'. Please use 'YYYY-MM-DD'.")
 
-def get_token(api_key):
-    response = requests.get(f'http://ws.audioscrobbler.com/2.0/?method=auth.gettoken&api_key={api_key}&format=json')
-    return response.json()['token']
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="artist-over-time-statistics",
+        description="Shows you how much you've listened to an artist over a period of time."
+    )
+    parser.add_argument(
+        "-s", "--start",
+        type=str,
+        help="Inclusive start date in YYYY-MM-DD format."
+    )
+    parser.add_argument(
+        "-e", "--end",
+        type=str,
+        help="Exclusive end date in YYYY-MM-DD format."
+    )
 
-def get_session(api_key, token, secret):
-    response = requests.get(f"http://ws.audioscrobbler.com/2.0/?method=auth.getSession&api_key={api_key}&token={token}&api_sig={\
-        get_api_sig({'api_key': api_key, 'token': token, 'method': 'auth.getSession'}, secret)\
-    }&format=json")
-    return response.json()
+    args = parser.parse_args()
 
-"""
-TODO
-* If you really don't trust your users, is it worth trying to ping a basic request off the api to make sure the key isn't mistyped
-* or has trailing whitespace or something weird before saving it to somewhere you dont' expect them to find?
-"""
-if find_dotenv() == "":
-    with open('.env', 'w') as f:
-        api_key = input("Enter your last.fm API key: ")
-        secret = input("Enter your last.fm Shared secret: ")
-        f.write(f"API_KEY = {api_key}\nSECRET = {secret}\n")
-dotenv_path = find_dotenv()
-load_dotenv(dotenv_path)
+    api_key, secret, session_key, username = init_auth()
+    get_tracks_url = f'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={username}&api_key={api_key}&format=json'
 
-api_key = os.getenv("API_KEY")
-secret = os.getenv("SECRET")
-print(f"API key is {api_key}")
-print(f"Secret is {secret}")
+    if args.end:
+        end_time = parse_date(args.end)
+    else:
+        end_time = int(time.mktime(datetime.now().timetuple()))
+    if args.start:
+        start_time = parse_date(args.start)
+    else:
+        # If no start date is provided, set it to a month before the end date
+        start_time = end_time - 60 * 60 * 24 * 30
 
-session_key = os.getenv("SESSION_KEY")
-if session_key is None:
-    token = get_token(api_key)
-    print(f"Token is {token}")
+    get_tracks_url += f'&from={start_time}&to={end_time}'
 
-    webbrowser.open(f"http://www.last.fm/api/auth/?api_key={api_key}&token={token}")
-    input("Press Enter after authorizing the app on last.fm...") # way too lazy to do this in a better way
-
-    session_key = get_session(api_key, token, secret)["session"]["key"]
-    with open(dotenv_path, 'a') as f:
-        f.write(f"SESSION_KEY = {session_key}\n")
-
-print(f"Session token is {session_key}")
+    response = requests.get(get_tracks_url)
+    json.dump(response.json(), open('response.json', 'w'), indent=4)
