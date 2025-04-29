@@ -1,9 +1,7 @@
-import json
 from auth import init_auth
 from datetime import datetime
-from urllib.parse import urlparse
-import sys
 import time
+import matplotlib.pyplot as plt
 import requests
 import argparse
 
@@ -20,6 +18,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="artist-over-time-statistics",
         description="Shows you how much you've listened to an artist over a period of time."
+    )
+    parser.add_argument(
+        "name",
+        type=str,
+        help="The name of the artist you want to get statistics for."
+    )
+    parser.add_argument(
+        "-m", "--min",
+        type=int,
+        help="Minimum number of listens to display the date."
     )
     parser.add_argument(
         "-s", "--start",
@@ -50,6 +58,7 @@ if __name__ == "__main__":
     get_tracks_url += f'&from={start_time}&to={end_time}'
 
     page_number = 1
+    statistics = {} # date as key, count of listens on that day as value
     tracks = []
     total_pages = "?"
     while True:
@@ -58,7 +67,25 @@ if __name__ == "__main__":
         total_pages = int(response.json()['recenttracks']['@attr']['totalPages'])
         tracks = response.json()['recenttracks']['track']
 
+        for track in tracks:
+            if track['artist']['#text'] != args.name:
+                continue
+
+            date = datetime.fromtimestamp(int(track['date']['uts'])).strftime('%Y-%m-%d')
+
+            if date not in statistics:
+                statistics[date] = 0
+            statistics[date] += 1
+
         page_number += 1
         if page_number > total_pages:
             break
-    print("Done!")
+    if args.min:
+        for date in list(statistics.keys()):
+            if statistics[date] < args.min:
+                del statistics[date]
+    plt.bar(statistics.keys(), statistics.values())
+    plt.title(args.name)
+    plt.ylabel("Number of listens")
+    plt.show()
+    print("\nDone!")
