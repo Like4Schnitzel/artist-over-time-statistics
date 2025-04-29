@@ -25,7 +25,7 @@ def fetch_session(api_key, token, secret):
 
 def init_auth():
     """
-    Gets API key, secret, session key and username and returns them in a tuple.
+    Gets the API key and returns it.
     """
 
     """
@@ -42,20 +42,5 @@ def init_auth():
     load_dotenv(dotenv_path)
 
     api_key: str = os.getenv("API_KEY")
-    secret: str = os.getenv("SECRET")
-
-    session_key: str = os.getenv("SESSION_KEY")
-    username: str = os.getenv("USERNAME")
-    if session_key is None:
-        token = fetch_token(api_key)
-
-        webbrowser.open(f"http://www.last.fm/api/auth/?api_key={api_key}&token={token}")
-        input("Press Enter after authorizing the app on last.fm...") # way too lazy to do this in a better way
-
-        session = fetch_session(api_key, token, secret)["session"]
-        session_key: str = session['key']
-        username: str = session['name']
-        with open(dotenv_path, 'a') as f:
-            f.write(f"SESSION_KEY = {session_key}\nUSERNAME = {username}\n")
     
-    return api_key, secret, session_key, username
+    return api_key

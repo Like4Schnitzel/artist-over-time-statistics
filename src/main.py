@@ -20,29 +20,35 @@ if __name__ == "__main__":
         description="Shows you how much you've listened to an artist over a period of time."
     )
     parser.add_argument(
-        "name",
+        "artistname",
         type=str,
         help="The name of the artist you want to get statistics for."
     )
     parser.add_argument(
+        "username",
+        type=str,
+        help="Username whose listens you want to fetch."
+    )
+    parser.add_argument(
         "-m", "--min",
         type=int,
-        help="Minimum number of listens to display the date."
+        help="Minimum number of listens to display the date. Default: 1."
     )
     parser.add_argument(
         "-s", "--start",
         type=str,
-        help="Inclusive start date in YYYY-MM-DD format."
+        help="Inclusive start date in YYYY-MM-DD format. Default: 30 days before the end date."
     )
     parser.add_argument(
         "-e", "--end",
         type=str,
-        help="Exclusive end date in YYYY-MM-DD format."
+        help="Exclusive end date in YYYY-MM-DD format. Default: Current time."
     )
 
     args = parser.parse_args()
 
-    api_key, secret, session_key, username = init_auth()
+    api_key = init_auth()
+    username = args.username
     get_tracks_url = f'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={username}&api_key={api_key}&limit=200&format=json'
 
     if args.end:
@@ -63,12 +69,23 @@ if __name__ == "__main__":
     total_pages = "?"
     while True:
         print(f"Fetching page {page_number}/{total_pages}...\r", end="")
-        response = requests.get(get_tracks_url + f'&page={page_number}')
-        total_pages = int(response.json()['recenttracks']['@attr']['totalPages'])
-        tracks = response.json()['recenttracks']['track']
+        response_json = requests.get(get_tracks_url + f'&page={page_number}').json()
+        if 'error' in response_json:
+            print(f"Error {response_json['error']}: {response_json['message']}")
+            if args.username and response_json['error'] == 17:
+                print(f"This is likely caused by {username} having their tracks set to private.")
+            break
+
+        total_pages = int(response_json['recenttracks']['@attr']['totalPages'])
+        tracks = response_json['recenttracks']['track']
 
         for track in tracks:
-            if track['artist']['#text'] != args.name:
+            if track['artist']['#text'] != args.artistname:
+                continue
+
+            # Currently playing tracks don't have a date attribute.
+            # We could add them to the current day instead of skipping but they appear on every page which would inflate the count.
+            if '@attr' in track and 'nowplaying' in track['@attr']:
                 continue
 
             date = datetime.fromtimestamp(int(track['date']['uts'])).strftime('%Y-%m-%d')
@@ -84,8 +101,9 @@ if __name__ == "__main__":
         for date in list(statistics.keys()):
             if statistics[date] < args.min:
                 del statistics[date]
-    plt.bar(statistics.keys(), statistics.values())
-    plt.title(args.name)
-    plt.ylabel("Number of listens")
-    plt.show()
+    if len(statistics.keys()) > 0:
+        plt.bar(statistics.keys(), statistics.values())
+        plt.title(f"{args.artistname} listens by {username}")
+        plt.ylabel("Number of listens")
+        plt.show()
     print("\nDone!")
